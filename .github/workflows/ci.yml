@@ -26,6 +26,12 @@ jobs:
       - name: Install
         run: uv sync --locked
 
+      - name: Cache the embedding model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/fastembed
+          key: fastembed-bge-small-en-v1.5
+
       - name: Format
         run: uv run ruff format --check .
 
@@ -37,3 +43,5 @@ jobs:
 
       - name: Tests (unit and integration with PostgreSQL + pgvector in Docker)
         run: uv run pytest -q
+        env:
+          MARKETPULSE_EMBEDDING_CACHE_DIR: ~/.cache/fastembed

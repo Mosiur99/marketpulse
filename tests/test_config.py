@@ -33,3 +33,13 @@ def test_rejects_a_pool_size_out_of_range(monkeypatch: pytest.MonkeyPatch) -> No
 
     with pytest.raises(ValidationError):
         Settings(_env_file=None)
+
+
+def test_doc_sources_point_at_raw_files_and_their_github_pages() -> None:
+    sources = Settings(docs_files=["rest-api.md"]).doc_sources()
+    assert [(s.raw_url, s.page_url) for s in sources] == [
+        (
+            "https://raw.githubusercontent.com/binance/binance-spot-api-docs/master/rest-api.md",
+            "https://github.com/binance/binance-spot-api-docs/blob/master/rest-api.md",
+        )
+    ]

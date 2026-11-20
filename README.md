@@ -27,8 +27,12 @@ Needs Docker and [uv](https://docs.astral.sh/uv/).
 cp .env.example .env
 docker compose up -d --wait
 uv run alembic upgrade head
+uv run marketpulse-docs       # download, chunk and embed the Binance Spot API docs (about 2 minutes)
 uv run marketpulse            # http://localhost:8000/health and /docs
 ```
+
+Run `marketpulse-docs` again at any time: documents whose ETag has not changed are skipped, and only
+sections that changed are embedded again. `--force` downloads everything regardless.
 
 ## How the ingestor works
 
@@ -43,6 +47,28 @@ uv run marketpulse            # http://localhost:8000/health and /docs
   memory (up to 50,000) and are saved on a later flush.
 - `/health` shows whether the feed is connected, the lag behind the newest trade and how many trades were saved.
 
+## How docs search works
+
+- **Source.** Six Markdown files from Binance's public
+  [binance-spot-api-docs](https://github.com/binance/binance-spot-api-docs) repository (REST API, WebSocket
+  streams, user data stream, errors, filters, enums), fetched with `If-None-Match` and a one-second pause
+  between files.
+- **Chunking.** Split at every heading, outside code blocks, so each endpoint, error code or filter is its own
+  chunk with its heading path (`Public API Endpoints > Market Data endpoints > Kline/Candlestick data`) and a
+  GitHub anchor for citations. Long sections are packed into chunks of about 400 tokens with a short overlap;
+  code blocks are never split. Tables of contents are dropped.
+- **Embeddings.** `BAAI/bge-small-en-v1.5` (384 dimensions) runs locally through fastembed: no API key, about
+  580 MB of memory while ingesting. Chunks are stored by content hash, so re-ingesting adds nothing new.
+- **Search.** Two rankings are merged with reciprocal rank fusion (k = 60):
+  - vector: cosine distance on an HNSW index;
+  - keyword: PostgreSQL full-text search where headings weigh more than body text, paths such as
+    `/api/v3/klines` are split into words, and only chunks with every word of the question are kept (any word,
+    when no chunk has them all).
+
+  Each catches what the other misses: for "what does error -1021 mean", vector search alone ranks other error
+  codes first and keyword search alone finds only pages that mention errors in general, while the fused list
+  puts `-1021 INVALID_TIMESTAMP` first. A5 measures this on a fixed question set.
+
 ## API
 
 | Endpoint | Returns |
@@ -50,6 +76,7 @@ uv run marketpulse            # http://localhost:8000/health and /docs
 | `GET /prices/{symbol}` | The latest recorded trade price |
 | `GET /candles/{symbol}?limit=60&cursor=` | One-minute candles, newest first, with keyset pagination: pass `next_cursor` to get the next page. Pages never skip or repeat a candle, even while new ones arrive. |
 | `GET /stats/{symbol}?window=24h` | Open, last, change, change %, high, low, volume and trade count over `15m`, `1h`, `4h` or `24h` |
+| `GET /docs/search?q=&limit=5&mode=hybrid` | Doc sections for a question, best first, each with its heading path, a link to the exact heading and the text. `mode` is `hybrid`, `vector` or `keyword`. |
 | `GET /health` | Database state, feed connection, lag and trades saved |
 
 Prices and volumes are exact decimals, sent as strings. Errors use RFC 9457 problem details
@@ -60,6 +87,7 @@ fill gaps. Interactive docs are at `/docs`.
 
 ```bash
 uv run pytest                 # unit tests plus integration tests in a pgvector container
+uv run pytest -m "not model"  # skip the tests that load the embedding model (about 70 MB download)
 uv run ruff check . && uv run mypy src tests
 ```
 
@@ -70,8 +98,8 @@ uv run ruff check . && uv run mypy src tests
 | A0 | Project skeleton, settings, health check, migrations, CI | done |
 | A1 | WebSocket trade ingestor and one-minute candles | done |
 | A2 | Market data API with keyset pagination | done |
-| A3 | Docs ingestion and hybrid search | next |
-| A4 | Claude agent with tool calling and guardrails | |
+| A3 | Docs ingestion and hybrid search | done |
+| A4 | Claude agent with tool calling and guardrails | next |
 | A5 | Retrieval and answer evaluation | |
 | A6 | Scheduled summary and alerts | |
 | A7 | Docker image, metrics, demo | |

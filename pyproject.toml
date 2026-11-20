@@ -10,6 +10,9 @@ dependencies = [
     "alembic>=1.20.1",
     "asyncpg>=0.32.0",
     "fastapi>=0.165.0",
+    "fastembed>=0.9.1",
+    "httpx>=0.28.1",
+    "pgvector>=0.5.1",
     "pydantic-settings>=2.16.3",
     "sqlalchemy[asyncio]>=2.1.9",
     "uvicorn[standard]>=0.54.0",
@@ -17,6 +20,7 @@ dependencies = [
 
 [project.scripts]
 marketpulse = "marketpulse.main:main"
+marketpulse-docs = "marketpulse.docs.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.13.9,<0.14.0"]
@@ -53,4 +57,7 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]
-markers = ["integration: needs Docker (PostgreSQL with pgvector in a container)"]
+markers = [
+    "integration: needs Docker (PostgreSQL with pgvector in a container)",
+    "model: loads the local embedding model (downloads about 70 MB the first time)",
+]

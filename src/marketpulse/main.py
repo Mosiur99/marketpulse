@@ -9,9 +9,10 @@ import uvicorn
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from marketpulse.api import health, market, problems
+from marketpulse.api import docs, health, market, problems
 from marketpulse.config import Settings, get_settings
 from marketpulse.db import create_engine
+from marketpulse.docs.embedder import Embedder
 from marketpulse.market.ingestor import Ingestor
 from marketpulse.market.store import TradeStore
 
@@ -20,6 +21,7 @@ def create_app(
     settings: Settings | None = None,
     engine: AsyncEngine | None = None,
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    embedder: Embedder | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
 
@@ -51,14 +53,19 @@ def create_app(
     app = FastAPI(
         title="MarketPulse",
         version="0.1.0",
-        description="Live crypto market data recorded from Binance's public trade stream.",
+        description=(
+            "Live crypto market data recorded from Binance's public trade stream, "
+            "and search over the Binance Spot API docs."
+        ),
         lifespan=lifespan,
     )
     app.state.settings = settings
     app.state.clock = clock
+    app.state.embedder = embedder
     problems.install(app)
     app.include_router(health.router)
     app.include_router(market.router)
+    app.include_router(docs.router)
     return app
 
 
