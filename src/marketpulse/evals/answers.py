@@ -1,5 +1,6 @@
 """Answer evaluation: runs the agent on fixed cases and grades answers by rule, no AI judge."""
 
+import json
 import re
 import tomllib
 from collections.abc import Awaitable, Callable, Sequence
@@ -17,7 +18,8 @@ NOT_FIGURES = re.compile(
     r"https?://\S+|\S*/\S*|\d{4}-\d{2}-\d{2}(?:[ T][\d:.+]+)?|\b\d{1,2}:\d{2}(?::\d{2})?\b"
 )
 FIGURE = re.compile(r"(?<![\w.])-?\d[\d,]*(?:\.\d+)?(?:\s?[kKM]\b)?")
-URL = re.compile(r"https?://[^\s)\]>\"'`]+")
+# gpt-oss wraps citations in 【 】, so those brackets end a link too.
+URL = re.compile(r"https?://[^\s)\]>\"'`【】「」]+")
 # Whole numbers this small are counts, windows and steps ("last 3 candles", "15 minutes"), not data.
 SMALL = 60
 NO_DATA = re.compile(
@@ -148,7 +150,7 @@ def grade(case: Case, result: AgentResult, tool_outputs: Sequence[str]) -> Grade
             notes.append(f"cited {sorted(cited) or 'nothing'}")
 
     if case.no_data:
-        checks["no_data"] = bool(NO_DATA.search(answer))
+        checks["no_data"] = bool(NO_DATA.search(answer.replace("\u2019", "'")))
         if not checks["no_data"]:
             notes.append("did not say the data is missing")
     return Grade(checks, notes)
@@ -204,6 +206,25 @@ async def run_cases(
             continue
         results.append(CaseResult(case, result, grade(case, result, outputs)))
     return results
+
+
+def answers_json(results: Sequence[CaseResult]) -> str:
+    """Every answer with its verdict, for reading what the model actually said."""
+    return json.dumps(
+        [
+            {
+                "question": r.case.question,
+                "passed": r.grade.passed,
+                "status": r.result.status if r.result else None,
+                "answer": r.result.answer if r.result else None,
+                "tools": [c.name for c in r.result.calls] if r.result else [],
+                "notes": r.grade.notes,
+            }
+            for r in results
+        ],
+        indent=2,
+        ensure_ascii=False,
+    )
 
 
 def answers_report(results: Sequence[CaseResult], model: str) -> str:

@@ -11,8 +11,11 @@ from marketpulse.agent.tools import CallRecord
 from marketpulse.docs.search import DocHit, DocSearch
 from marketpulse.evals.answers import (
     Case,
+    CaseResult,
     Figure,
+    Grade,
     RecordingToolBox,
+    answers_json,
     answers_report,
     cited_sections,
     figures,
@@ -73,6 +76,17 @@ def test_unsupported_flags_figures_the_tools_did_not_return() -> None:
         "1800.5",
     ]
     assert unsupported("Back in 2020 it was low.", "price on January 1, 2020?", []) == []
+
+
+def test_cited_sections_stop_at_the_brackets_gpt_oss_uses() -> None:
+    assert cited_sections(f"means INVALID_TIMESTAMP. \u3010{DOC_URL}\u3011") == {
+        "errors.md#-1021-invalid_timestamp"
+    }
+
+
+def test_no_data_accepts_a_curly_apostrophe() -> None:
+    answer = "I\u2019m sorry, but I don\u2019t have live data for DOGE."
+    assert grade(Case("DOGE price?", no_data=True), result(answer), []).checks["no_data"]
 
 
 def test_cited_sections_read_links_in_text_and_markdown() -> None:
@@ -215,8 +229,6 @@ async def test_end_to_end_a_hallucinated_figure_is_caught() -> None:
 
 
 def test_report_lists_each_case_and_totals() -> None:
-    from marketpulse.evals.answers import CaseResult, Grade
-
     ok = AgentResult("answered", "x", 2, prompt_tokens=900, completion_tokens=100, latency_ms=2500)
     rows = [
         CaseResult(Case("BTC price?"), ok, Grade({"answered": True, "figures": True})),
@@ -227,3 +239,20 @@ def test_report_lists_each_case_and_totals() -> None:
     assert "| 1 | BTC price? | pass | 1000 | 2.5 |  |" in text
     assert "| 2 | DOGE? | FAIL | 0 | - | provider down |" in text
     assert text.endswith("Checks: answered 1/2, figures 1/1. Tokens: 1,000. Cost: $0 (free tier).")
+
+
+def test_answers_json_keeps_the_text_and_verdict() -> None:
+    ok = AgentResult(
+        "answered", "BTC is 63,103.30.", 2, calls=[CallRecord("get_price", "{}", True)]
+    )
+    rows = [CaseResult(Case("BTC price?"), ok, Grade({"answered": True}))]
+    assert json.loads(answers_json(rows)) == [
+        {
+            "question": "BTC price?",
+            "passed": True,
+            "status": "answered",
+            "answer": "BTC is 63,103.30.",
+            "tools": ["get_price"],
+            "notes": [],
+        }
+    ]

@@ -16,6 +16,7 @@ from marketpulse.docs.search import DocSearch, Mode
 from marketpulse.evals.answers import (
     CaseResult,
     RecordingToolBox,
+    answers_json,
     answers_report,
     load_cases,
     run_cases,
@@ -127,6 +128,8 @@ def answers(args: argparse.Namespace) -> int:
         run_answers(settings, settings.llm_api_key.get_secret_value(), args.delay, args.timeout)
     )
     print(answers_report(results, settings.llm_model))
+    if args.save:
+        Path(args.save).write_text(answers_json(results) + "\n")
     passed = sum(r.grade.passed for r in results) / len(results)
     return 1 if args.min_pass is not None and passed < args.min_pass else 0
 
@@ -150,6 +153,9 @@ def main() -> None:
     )
     # Longer than the service's limit: a rate-limited call may wait up to 30 s, twice.
     answers_parser.add_argument("--timeout", type=float, default=180, help="seconds per case")
+    answers_parser.add_argument(
+        "--save", help="write every answer with its verdict to this JSON file"
+    )
     answers_parser.add_argument(
         "--min-pass", type=float, help="exit 1 when the share of passed cases is lower"
     )

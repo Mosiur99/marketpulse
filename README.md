@@ -117,8 +117,34 @@ Each answer is graded by plain rules, with no AI judge:
 - **no_data:** for questions without data, the answer says so instead of giving a figure.
 
 ```bash
-uv run marketpulse-eval answers   # needs MARKETPULSE_LLM_API_KEY and the pinned docs ingested; about 10 minutes
+uv run marketpulse-eval answers --save answers.json   # needs the key and the pinned docs; about 10 minutes
 ```
+
+Latest run with `openai/gpt-oss-120b` on Groq's free tier (full answers in `evals/results/`):
+
+| Check | Passed |
+|---|---|
+| Whole case | **14 / 15** |
+| answered | 15 / 15 |
+| grounded (no made-up figures) | 15 / 15 |
+| tools | 13 / 13 |
+| figures | 8 / 8 |
+| no_data | 2 / 2 |
+| sources | 5 / 6 |
+
+About 37,000 tokens for the run, $0. What the runs found:
+
+- The first run scored 7 / 15, and most failures were grader bugs, not wrong answers. gpt-oss wraps links
+  in `【 】`, which the link parser kept as part of the URL, and writes "don’t" with a curly apostrophe,
+  which the no-data check missed. Reading the saved answers (`--save`) showed both.
+- One answer cited docs as `【3†L1-L9】`, the model's internal reference style, instead of a link. The
+  system prompt now asks for the full URL exactly as `search_docs` returned it; the next run linked it.
+- gpt-oss sometimes ends a turn with reasoning and no text. The loop now asks again instead of returning an
+  empty answer.
+- Still failing: "What does the LOT_SIZE filter check?" is answered correctly but cites the *Filter failures*
+  section of `errors.md` rather than `filters.md#lot_size`, because search ranks that section first.
+- Results vary a little between runs (the model is not deterministic); the HMAC case passed in one run and
+  failed in another with example values it made up for a code sample.
 
 It pauses 20 seconds between cases and waits a minute after a rate limit, to stay inside Groq's free tier,
 and prints the tokens it used (the free tier allows 200,000 a day). In GitHub it runs from **Actions > Answer eval > Run
@@ -177,7 +203,7 @@ uv run ruff check . && uv run mypy src tests
 | A1 | WebSocket trade ingestor and one-minute candles | done |
 | A2 | Market data API with keyset pagination | done |
 | A3 | Docs ingestion and hybrid search | done |
-| A4 | AI agent with tool calling and guardrails | built; live check with a key pending |
-| A5 | Retrieval and answer evaluation | built; answer scores pending the first run with a key |
+| A4 | AI agent with tool calling and guardrails | done |
+| A5 | Retrieval and answer evaluation | done |
 | A6 | Scheduled summary and alerts | |
 | A7 | Docker image, metrics, demo | |

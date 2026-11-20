@@ -1,0 +1,154 @@
+[
+  {
+    "question": "What is the latest BTC price?",
+    "passed": true,
+    "status": "answered",
+    "answer": "The latest BTC/USDT price is $63,103.30, recorded at 2026‑11‑19 15:59:59 UTC.",
+    "tools": [
+      "get_price"
+    ],
+    "notes": []
+  },
+  {
+    "question": "How much did ETH change in the last hour, in percent?",
+    "passed": true,
+    "status": "answered",
+    "answer": "ETHUSDT fell by about 0.93 % over the last hour (from 15:00 to 15:59 UTC on 2026‑11‑19).",
+    "tools": [
+      "get_stats"
+    ],
+    "notes": []
+  },
+  {
+    "question": "What were SOL's high and low over the last 4 hours?",
+    "passed": true,
+    "status": "answered",
+    "answer": "Over the most recent 4‑hour window (2026‑11‑19 12:00 UTC to 15:59 UTC), SOL/USDT reached a high of **$75.65** and a low of **$73.51**.",
+    "tools": [
+      "get_stats"
+    ],
+    "notes": []
+  },
+  {
+    "question": "How much BTC was traded in the last 15 minutes?",
+    "passed": true,
+    "status": "answered",
+    "answer": "In the most recent 15‑minute window (2024‑11‑19 15:45 UTC to 15:59 UTC), **255.29 BTC** were traded on Binance Spot for the BTC/USDT pair.",
+    "tools": [
+      "get_stats"
+    ],
+    "notes": []
+  },
+  {
+    "question": "Which fell more over the last hour, BTC or ETH?",
+    "passed": true,
+    "status": "answered",
+    "answer": "Over the last hour BTC fell $454.7 (from $63,558 to $63,103.3), a ‑0.72 % change. ETH fell $16.66 (from $1,798.55 to $1,781.89), a ‑0.93 % change.  \n\nSo **ETH dropped a larger percentage**, while **BTC’s dollar‑amount loss was bigger**.",
+    "tools": [
+      "get_stats",
+      "get_stats"
+    ],
+    "notes": []
+  },
+  {
+    "question": "Show me the closing prices of the last 3 one-minute SOL candles.",
+    "passed": true,
+    "status": "answered",
+    "answer": "- 2026‑11‑19 15:59 UTC – close 73.57 USDT  \n- 2026‑11‑19 15:58 UTC – close 73.66 USDT  \n- 2026‑11‑19 15:57 UTC – close 73.79 USDT",
+    "tools": [
+      "get_candles"
+    ],
+    "notes": []
+  },
+  {
+    "question": "How many ETH trades happened in the last 15 minutes?",
+    "passed": true,
+    "status": "answered",
+    "answer": "In the most recent 15‑minute window (15:45 – 15:59 UTC), ETHUSDT recorded **38,387 trades**.",
+    "tools": [
+      "get_stats"
+    ],
+    "notes": []
+  },
+  {
+    "question": "What is the request weight of GET /api/v3/klines?",
+    "passed": true,
+    "status": "answered",
+    "answer": "The GET /api/v3/klines endpoint carries a request weight of **2**【https://github.com/binance/binance-spot-api-docs/blob/master/rest-api.md#klinecandlestick-data】.",
+    "tools": [
+      "search_docs"
+    ],
+    "notes": []
+  },
+  {
+    "question": "What does Binance error -1021 mean?",
+    "passed": true,
+    "status": "answered",
+    "answer": "Binance error **‑1021** means **INVALID_TIMESTAMP**. It occurs when the timestamp you send with a request is outside the allowed `recvWindow`—for example, if your request’s timestamp is more than about 1 second ahead of the server’s time.  \n\nSource: https://github.com/binance/binance-spot-api-docs/blob/master/errors.md#-1021-invalid_timestamp",
+    "tools": [
+      "search_docs"
+    ],
+    "notes": []
+  },
+  {
+    "question": "How many streams can a single Binance websocket connection subscribe to?",
+    "passed": true,
+    "status": "answered",
+    "answer": "A single Binance WebSocket connection can subscribe to **up to 1024 streams**. 【https://github.com/binance/binance-spot-api-docs/blob/master/web-socket-streams.md#websocket-limits】",
+    "tools": [
+      "search_docs"
+    ],
+    "notes": []
+  },
+  {
+    "question": "What does the LOT_SIZE filter check?",
+    "passed": false,
+    "status": "answered",
+    "answer": "The **LOT_SIZE** filter validates the order quantity. It makes sure the quantity you specify is not lower than the minimum, not higher than the maximum, and that it follows the required step‑size (increment) for that trading pair. If any of those conditions aren’t met, the order is rejected with a “Filter failure: LOT_SIZE”.  \n\nSource: https://github.com/binance/binance-spot-api-docs/blob/master/errors.md#filter-failures",
+    "tools": [
+      "search_docs"
+    ],
+    "notes": [
+      "cited ['errors.md#filter-failures']"
+    ]
+  },
+  {
+    "question": "How do I sign a Binance API request with an HMAC key?",
+    "passed": true,
+    "status": "answered",
+    "answer": "To sign a Binance Spot REST request you:\n\n1. **Build the query string** (percent‑encode any non‑ASCII characters).  \n   Example payload:  \n   `symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559`\n\n2. **Compute the HMAC‑SHA256 signature** using your **secretKey** as the signing key and the query string as the message, then hex‑encode the result.  \n   ```bash\n   echo -n \"$payload\" | openssl dgst -sha256 -hmac \"$secretKey\"\n   ```\n   This produces a hex string such as `c8db56825ae71d6d79447849e617115f4a920fa2acdcab2b053c4b2838bd6b71`.\n\n3. **Append the signature** to the request as the `signature` parameter and include your API key in the header `X-MBX-APIKEY`.  \n   ```bash\n   curl -H \"X-MBX-APIKEY: $apiKey\" -X POST \\\n        \"https://api.binance.com/api/v3/order?$payload&signature=$signature\"\n   ```\n\nThese steps are described in the Binance Spot API documentation under “HMAC Keys” 【https://github.com/binance/binance-spot-api-docs/blob/master/rest-api.md#hmac-keys】.",
+    "tools": [
+      "search_docs"
+    ],
+    "notes": []
+  },
+  {
+    "question": "What is ETH's latest price, and which Binance endpoint returns the latest price of a symbol?",
+    "passed": true,
+    "status": "answered",
+    "answer": "ETH USDT is trading at $1,781.89 as of 2026‑11‑19 15:59:59 UTC.  \nThe Binance REST endpoint that returns the latest price for a symbol is **GET /api/v3/ticker/price** (the “Symbol price ticker” endpoint)【https://github.com/binance/binance-spot-api-docs/blob/master/rest-api.md#symbol-price-ticker】.",
+    "tools": [
+      "search_docs",
+      "search_docs",
+      "search_docs",
+      "get_price"
+    ],
+    "notes": []
+  },
+  {
+    "question": "What is the price of DOGE right now?",
+    "passed": true,
+    "status": "answered",
+    "answer": "I’m sorry, but I don’t have live data for DOGE. I can provide current prices for the tracked symbols (BTCUSDT, ETHUSDT, SOLUSDT) if that would help.",
+    "tools": [],
+    "notes": []
+  },
+  {
+    "question": "What was the BTC price on January 1, 2020?",
+    "passed": true,
+    "status": "answered",
+    "answer": "I’m sorry, but I don’t have access to price data that far back. The available tools only provide current prices, recent statistics, or recent one‑minute candles.",
+    "tools": [],
+    "notes": []
+  }
+]
