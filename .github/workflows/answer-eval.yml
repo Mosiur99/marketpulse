@@ -1,0 +1,71 @@
+name: Answer eval
+
+# Runs the agent on evals/answers.toml against the real AI provider. Started by hand
+# (Actions > Answer eval > Run workflow) because it uses the free-tier quota.
+# Needs the repository secret MARKETPULSE_LLM_API_KEY.
+
+on:
+  workflow_dispatch:
+    inputs:
+      delay:
+        description: Seconds between cases (free-tier rate limits)
+        default: "20"
+
+permissions:
+  contents: read
+
+jobs:
+  answers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: marketpulse
+          POSTGRES_PASSWORD: marketpulse
+          POSTGRES_DB: marketpulse
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U marketpulse -d marketpulse"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      MARKETPULSE_DATABASE_URL: postgresql+asyncpg://marketpulse:marketpulse@localhost:5432/marketpulse
+      MARKETPULSE_EMBEDDING_CACHE_DIR: ~/.cache/fastembed
+      MARKETPULSE_LLM_API_KEY: ${{ secrets.MARKETPULSE_LLM_API_KEY }}
+    steps:
+      - name: Check the API key secret
+        run: |
+          if [ -z "$MARKETPULSE_LLM_API_KEY" ]; then
+            echo "Add the repository secret MARKETPULSE_LLM_API_KEY (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --locked
+
+      - name: Cache the embedding model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/fastembed
+          key: fastembed-bge-small-en-v1.5
+
+      - name: Pin the docs to the commit the retrieval baseline was measured on
+        run: echo "MARKETPULSE_DOCS_BRANCH=$(jq -r .docs_commit evals/retrieval-baseline.json)" >> "$GITHUB_ENV"
+
+      - name: Migrate and ingest the docs
+        run: |
+          uv run alembic upgrade head
+          uv run marketpulse-docs
+
+      - name: Answer eval
+        env:
+          DELAY: ${{ inputs.delay }}
+        run: uv run marketpulse-eval answers --delay "$DELAY" | tee -a "$GITHUB_STEP_SUMMARY"

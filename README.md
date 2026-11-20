@@ -101,6 +101,30 @@ What the first run found and what changed:
   for "what does error -1021 mean" and `GET /api/v3/depth`. The eval prints every miss; hybrid's four
   include "What are the possible order status values?" and "How do I place a new limit order?".
 
+### Answer eval
+
+`evals/answers.toml` holds 15 questions for the agent: 7 about prices and stats, 5 about the docs, 1 mixing
+both and 2 it has no data for (DOGE, a price from 2020). They run against `evals/market-snapshot.json`, four
+hours of real one-minute Binance candles frozen at 2026-11-19 16:00 UTC, so every correct figure is known.
+
+Each answer is graded by plain rules, with no AI judge:
+
+- **answered:** the loop finished with an answer, not a step limit, timeout or cut-off.
+- **grounded:** every figure in the answer came from a tool result or the question (rounding and sign
+  allowed; small whole numbers such as "last 3 candles" are ignored). This catches made-up prices.
+- **tools / figures / sources:** the expected tools were called, the expected figures appear, and the answer
+  links one of the expected doc sections.
+- **no_data:** for questions without data, the answer says so instead of giving a figure.
+
+```bash
+uv run marketpulse-eval answers   # needs MARKETPULSE_LLM_API_KEY and the pinned docs ingested; about 10 minutes
+```
+
+It pauses 20 seconds between cases and waits a minute after a rate limit, to stay inside Groq's free tier,
+and prints the tokens it used (the free tier allows 200,000 a day). In GitHub it runs from **Actions > Answer eval > Run
+workflow** with the key stored as the repository secret `MARKETPULSE_LLM_API_KEY`, and writes the table to
+the run summary.
+
 ## How the agent works
 
 `POST /ask {"question": "..."}` runs a hand-written tool-calling loop against any OpenAI-compatible chat API.
@@ -141,6 +165,7 @@ uv run pytest                 # unit tests plus integration tests in a pgvector 
 uv run pytest -m "not model"  # skip the tests that load the embedding model (about 70 MB download)
 uv run pytest -m live         # one real call to the AI provider (needs MARKETPULSE_LLM_API_KEY)
 uv run marketpulse-eval retrieval  # retrieval scores on the golden set (see Evaluation)
+uv run marketpulse-eval answers    # agent answers graded by rule (needs MARKETPULSE_LLM_API_KEY)
 uv run ruff check . && uv run mypy src tests
 ```
 
@@ -153,6 +178,6 @@ uv run ruff check . && uv run mypy src tests
 | A2 | Market data API with keyset pagination | done |
 | A3 | Docs ingestion and hybrid search | done |
 | A4 | AI agent with tool calling and guardrails | built; live check with a key pending |
-| A5 | Retrieval and answer evaluation | retrieval eval in CI; answer eval next |
+| A5 | Retrieval and answer evaluation | built; answer scores pending the first run with a key |
 | A6 | Scheduled summary and alerts | |
 | A7 | Docker image, metrics, demo | |

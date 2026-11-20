@@ -4,14 +4,15 @@ import json
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from marketpulse.agent.llm import Message
 from marketpulse.docs.search import DocSearch
 from marketpulse.market.candles import minute_of
-from marketpulse.market.queries import MarketQueries
+from marketpulse.market.models import Trade
+from marketpulse.market.queries import Candle, WindowStats
 from marketpulse.market.windows import WINDOWS, Window, change_pct
 
 MAX_DOC_CHARS = 1_500
@@ -90,9 +91,19 @@ def parse[A: Args](model: type[A], name: str, arguments: str) -> A:
         raise ToolError(f"Invalid arguments for {name}: {problems}") from error
 
 
+class Market(Protocol):
+    """MarketQueries in the service; a fixed snapshot in the answer eval."""
+
+    async def latest_trade(self, symbol: str) -> Trade | None: ...
+
+    async def candles(self, symbol: str, limit: int, before: datetime | None) -> list[Candle]: ...
+
+    async def window_stats(self, symbol: str, since: datetime) -> WindowStats | None: ...
+
+
 @dataclass
 class ToolBox:
-    market: MarketQueries
+    market: Market
     docs: DocSearch
     symbols: list[str]
     clock: Callable[[], datetime]

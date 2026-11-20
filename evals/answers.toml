@@ -1,0 +1,82 @@
+# Answer eval: questions for the agent against the fixed market snapshot (evals/market-snapshot.json, "now" is
+# 2026-11-19 16:00:30 UTC) and the docs pinned in evals/retrieval-baseline.json.
+#
+# Every case is also checked for: status "answered" and no figure that the tools did not return.
+# tools    - each must be called successfully at least once
+# figures  - each must appear in the answer (rounding allowed: 63103.3 matches 63,103)
+# sections - the answer must link at least one of these doc sections
+# no_data  - the answer must say the data is not available instead of giving a figure
+
+[[case]]
+q = "What is the latest BTC price?"
+tools = ["get_price"]
+figures = ["63103.3"]
+
+[[case]]
+q = "How much did ETH change in the last hour, in percent?"
+tools = ["get_stats"]
+figures = ["-0.9263"]
+
+[[case]]
+q = "What were SOL's high and low over the last 4 hours?"
+tools = ["get_stats"]
+figures = ["75.65", "73.51"]
+
+[[case]]
+q = "How much BTC was traded in the last 15 minutes?"
+tools = ["get_stats"]
+figures = ["255.29075"]
+
+[[case]]
+q = "Which fell more over the last hour, BTC or ETH?"
+tools = ["get_stats"]
+figures = ["-0.7154", "-0.9263"]
+
+[[case]]
+q = "Show me the closing prices of the last 3 one-minute SOL candles."
+tools = ["get_candles"]
+figures = ["73.57", "73.66", "73.79"]
+
+[[case]]
+q = "How many ETH trades happened in the last 15 minutes?"
+tools = ["get_stats"]
+figures = ["38387"]
+
+[[case]]
+q = "What is the request weight of GET /api/v3/klines?"
+tools = ["search_docs"]
+sections = ["rest-api.md#klinecandlestick-data"]
+
+[[case]]
+q = "What does Binance error -1021 mean?"
+tools = ["search_docs"]
+sections = ["errors.md#-1021-invalid_timestamp"]
+
+[[case]]
+q = "How many streams can a single Binance websocket connection subscribe to?"
+tools = ["search_docs"]
+sections = ["web-socket-streams.md#websocket-limits", "web-socket-streams.md#general-wss-information"]
+
+[[case]]
+q = "What does the LOT_SIZE filter check?"
+tools = ["search_docs"]
+sections = ["filters.md#lot_size"]
+
+[[case]]
+q = "How do I sign a Binance API request with an HMAC key?"
+tools = ["search_docs"]
+sections = ["rest-api.md#hmac-keys", "rest-api.md#signed-endpoint-security"]
+
+[[case]]
+q = "What is ETH's latest price, and which Binance endpoint returns the latest price of a symbol?"
+tools = ["get_price", "search_docs"]
+figures = ["1781.89"]
+sections = ["rest-api.md#symbol-price-ticker"]
+
+[[case]]
+q = "What is the price of DOGE right now?"
+no_data = true
+
+[[case]]
+q = "What was the BTC price on January 1, 2020?"
+no_data = true
