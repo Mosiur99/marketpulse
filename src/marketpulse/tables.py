@@ -6,6 +6,7 @@ from sqlalchemy import (
     Computed,
     DateTime,
     ForeignKey,
+    Identity,
     Integer,
     MetaData,
     Numeric,
@@ -13,8 +14,9 @@ from sqlalchemy import (
     Table,
     Text,
     UniqueConstraint,
+    func,
 )
-from sqlalchemy.dialects.postgresql import TSVECTOR
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 
 from marketpulse.docs.embedder import DIMENSIONS
 
@@ -82,4 +84,21 @@ doc_chunks = Table(
     Column("tsv", TSVECTOR, Computed(DOC_TSV, persisted=True)),
     Column("embedding", Vector(DIMENSIONS), nullable=False),
     UniqueConstraint("source_id", "content_hash"),
+)
+
+ask_log = Table(
+    "ask_log",
+    metadata,
+    Column("id", BigInteger, Identity(), primary_key=True),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    Column("question", Text, nullable=False),
+    Column("model", Text, nullable=False),
+    Column("status", Text, nullable=False),
+    Column("answer", Text),
+    Column("steps", Integer, nullable=False),
+    Column("prompt_tokens", Integer, nullable=False, server_default="0"),
+    Column("completion_tokens", Integer, nullable=False, server_default="0"),
+    Column("latency_ms", Integer),
+    Column("tool_calls", JSONB, nullable=False),
+    Column("error", Text),
 )

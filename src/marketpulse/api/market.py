@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 
@@ -9,17 +9,9 @@ from marketpulse.api.pagination import decode_cursor, encode_cursor
 from marketpulse.api.problems import ProblemError
 from marketpulse.market.candles import minute_of
 from marketpulse.market.queries import MarketQueries
+from marketpulse.market.windows import WINDOWS, Window, change_pct
 
 router = APIRouter(tags=["market data"])
-
-Window = Literal["15m", "1h", "4h", "24h"]
-WINDOWS: dict[str, timedelta] = {
-    "15m": timedelta(minutes=15),
-    "1h": timedelta(hours=1),
-    "4h": timedelta(hours=4),
-    "24h": timedelta(hours=24),
-}
-PERCENT = Decimal("0.0001")
 
 
 class Price(BaseModel):
@@ -127,7 +119,7 @@ async def stats(
         open=found.open,
         last=found.last,
         change=change,
-        change_pct=(change / found.open * 100).quantize(PERCENT),
+        change_pct=change_pct(found.open, found.last),
         high=found.high,
         low=found.low,
         volume=found.volume,

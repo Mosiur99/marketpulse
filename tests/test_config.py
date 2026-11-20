@@ -43,3 +43,13 @@ def test_doc_sources_point_at_raw_files_and_their_github_pages() -> None:
             "https://github.com/binance/binance-spot-api-docs/blob/master/rest-api.md",
         )
     ]
+
+
+def test_a_blank_api_key_counts_as_not_set(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MARKETPULSE_LLM_API_KEY", "  ")
+    assert Settings().llm_api_key is None
+    monkeypatch.setenv("MARKETPULSE_LLM_API_KEY", "gsk_test")
+    key = Settings().llm_api_key
+    assert key is not None
+    assert key.get_secret_value() == "gsk_test"
+    assert "gsk_test" not in repr(Settings())

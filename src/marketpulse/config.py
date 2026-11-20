@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field, PostgresDsn
+from pydantic import Field, PostgresDsn, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from marketpulse.docs.fetcher import DocSource
@@ -44,6 +44,17 @@ class Settings(BaseSettings):
     docs_fetch_delay_seconds: float = Field(default=1.0, ge=0, le=60)
     embedding_model: str = "BAAI/bge-small-en-v1.5"
     embedding_cache_dir: str | None = None
+
+    llm_base_url: str = "https://api.groq.com/openai/v1"
+    llm_api_key: SecretStr | None = None
+    llm_model: str = "openai/gpt-oss-120b"
+    agent_max_steps: int = Field(default=6, ge=1, le=20)
+    agent_timeout_seconds: float = Field(default=60.0, gt=0, le=300)
+
+    @field_validator("llm_api_key", mode="before")
+    @classmethod
+    def blank_key_means_none(cls, value: object) -> object:
+        return None if isinstance(value, str) and not value.strip() else value
 
     def doc_sources(self) -> list[DocSource]:
         return [

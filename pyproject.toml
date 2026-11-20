@@ -1,7 +1,7 @@
 [project]
 name = "marketpulse"
 version = "0.1.0"
-description = "Live crypto market data, a Claude tool-calling agent and docs search"
+description = "Live crypto market data, a tool-calling AI agent and docs search"
 authors = [
     { name = "Mosiur Zzaman" }
 ]
@@ -60,4 +60,6 @@ testpaths = ["tests"]
 markers = [
     "integration: needs Docker (PostgreSQL with pgvector in a container)",
     "model: loads the local embedding model (downloads about 70 MB the first time)",
+    "live: calls the real AI provider; run with -m live",
 ]
+addopts = "-m 'not live'"
