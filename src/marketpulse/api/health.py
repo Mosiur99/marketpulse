@@ -25,6 +25,18 @@ async def health(request: Request, response: Response) -> Health:
     database_up = await is_database_up(request.app.state.engine)
     if not database_up:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    ingestor = request.app.state.ingestor
+    ingest = (
+        None
+        if ingestor is None
+        else Ingest(
+            connected=ingestor.connected,
+            lag_seconds=ingestor.lag_seconds(),
+            trades_saved=ingestor.trades_saved,
+        )
+    )
     return Health(
-        status="ok" if database_up else "degraded", database="up" if database_up else "down"
+        status="ok" if database_up else "degraded",
+        database="up" if database_up else "down",
+        ingest=ingest,
     )

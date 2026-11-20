@@ -1,21 +1,26 @@
 import asyncio
 import contextlib
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 
 import uvicorn
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from marketpulse.api import health
+from marketpulse.api import health, market, problems
 from marketpulse.config import Settings, get_settings
 from marketpulse.db import create_engine
 from marketpulse.market.ingestor import Ingestor
 from marketpulse.market.store import TradeStore
 
 
-def create_app(settings: Settings | None = None, engine: AsyncEngine | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    engine: AsyncEngine | None = None,
+    clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+) -> FastAPI:
     settings = settings or get_settings()
 
     @asynccontextmanager
@@ -43,8 +48,17 @@ def create_app(settings: Settings | None = None, engine: AsyncEngine | None = No
             if owned:
                 await app.state.engine.dispose()
 
-    app = FastAPI(title="MarketPulse", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(
+        title="MarketPulse",
+        version="0.1.0",
+        description="Live crypto market data recorded from Binance's public trade stream.",
+        lifespan=lifespan,
+    )
+    app.state.settings = settings
+    app.state.clock = clock
+    problems.install(app)
     app.include_router(health.router)
+    app.include_router(market.router)
     return app
 
 

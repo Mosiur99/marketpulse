@@ -43,6 +43,19 @@ uv run marketpulse            # http://localhost:8000/health and /docs
   memory (up to 50,000) and are saved on a later flush.
 - `/health` shows whether the feed is connected, the lag behind the newest trade and how many trades were saved.
 
+## API
+
+| Endpoint | Returns |
+|----------|---------|
+| `GET /prices/{symbol}` | The latest recorded trade price |
+| `GET /candles/{symbol}?limit=60&cursor=` | One-minute candles, newest first, with keyset pagination: pass `next_cursor` to get the next page. Pages never skip or repeat a candle, even while new ones arrive. |
+| `GET /stats/{symbol}?window=24h` | Open, last, change, change %, high, low, volume and trade count over `15m`, `1h`, `4h` or `24h` |
+| `GET /health` | Database state, feed connection, lag and trades saved |
+
+Prices and volumes are exact decimals, sent as strings. Errors use RFC 9457 problem details
+(`application/problem+json`). Candles exist only for minutes when the ingestor was running; the API does not
+fill gaps. Interactive docs are at `/docs`.
+
 ## Tests
 
 ```bash
@@ -56,8 +69,8 @@ uv run ruff check . && uv run mypy src tests
 |------|-------|--------|
 | A0 | Project skeleton, settings, health check, migrations, CI | done |
 | A1 | WebSocket trade ingestor and one-minute candles | done |
-| A2 | Market data API with keyset pagination | next |
-| A3 | Docs ingestion and hybrid search | |
+| A2 | Market data API with keyset pagination | done |
+| A3 | Docs ingestion and hybrid search | next |
 | A4 | Claude agent with tool calling and guardrails | |
 | A5 | Retrieval and answer evaluation | |
 | A6 | Scheduled summary and alerts | |
