@@ -3,6 +3,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from marketpulse.config import Settings
 from marketpulse.main import create_app
 
 pytestmark = pytest.mark.integration
@@ -20,11 +21,11 @@ async def test_migrations_enable_pgvector(engine: AsyncEngine) -> None:
 
 
 async def test_health_reports_a_reachable_database_as_ok(engine: AsyncEngine) -> None:
-    app = create_app(engine=engine)
+    app = create_app(Settings(_env_file=None, ingest_enabled=False), engine=engine)
     async with app.router.lifespan_context(app):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             response = await client.get("/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "database": "up"}
+    assert response.json() == {"status": "ok", "database": "up", "ingest": None}

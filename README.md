@@ -30,6 +30,19 @@ uv run alembic upgrade head
 uv run marketpulse            # http://localhost:8000/health and /docs
 ```
 
+## How the ingestor works
+
+- Subscribes to Binance's combined trade stream for the configured symbols (`MARKETPULSE_SYMBOLS`).
+  It uses the market-data-only host `data-stream.binance.vision` first and switches to the next feed URL
+  whenever a connection ends without delivering a trade.
+- Buffers trades and writes them every second or every 500 trades, in one transaction that also updates the
+  one-minute candles.
+- A trade the feed sends again after a reconnect is stored once and counted once: trades are keyed by
+  `(symbol, trade_id)`, and candles keep the first and last trade id so batches can arrive in any order.
+- Reconnects use exponential backoff with jitter (0.5 s up to 60 s). If the database is down, trades stay in
+  memory (up to 50,000) and are saved on a later flush.
+- `/health` shows whether the feed is connected, the lag behind the newest trade and how many trades were saved.
+
 ## Tests
 
 ```bash
@@ -42,8 +55,8 @@ uv run ruff check . && uv run mypy src tests
 | Part | Scope | Status |
 |------|-------|--------|
 | A0 | Project skeleton, settings, health check, migrations, CI | done |
-| A1 | WebSocket trade ingestor and one-minute candles | next |
-| A2 | Market data API with keyset pagination | |
+| A1 | WebSocket trade ingestor and one-minute candles | done |
+| A2 | Market data API with keyset pagination | next |
 | A3 | Docs ingestion and hybrid search | |
 | A4 | Claude agent with tool calling and guardrails | |
 | A5 | Retrieval and answer evaluation | |

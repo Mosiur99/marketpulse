@@ -8,9 +8,16 @@ from marketpulse.db import is_database_up
 router = APIRouter(tags=["health"])
 
 
+class Ingest(BaseModel):
+    connected: bool
+    lag_seconds: float | None
+    trades_saved: int
+
+
 class Health(BaseModel):
     status: Literal["ok", "degraded"]
     database: Literal["up", "down"]
+    ingest: Ingest | None = None
 
 
 @router.get("/health", response_model=Health)
