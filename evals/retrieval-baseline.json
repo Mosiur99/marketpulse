@@ -1,0 +1,18 @@
+{
+  "docs_commit": "473c101da94d5d0333ea6810fd4dbd842bbbadcf",
+  "k": 5,
+  "scores": {
+    "vector": {
+      "hit_rate": 0.925,
+      "mrr": 0.775
+    },
+    "keyword": {
+      "hit_rate": 0.775,
+      "mrr": 0.5938
+    },
+    "hybrid": {
+      "hit_rate": 0.9,
+      "mrr": 0.7654
+    }
+  }
+}

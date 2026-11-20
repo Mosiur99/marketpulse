@@ -105,15 +105,15 @@ async def test_search_finds_the_klines_section_first(
     assert hits[0].heading_path == "Exchange API > Market data > Kline/Candlestick data"
 
 
-async def test_keyword_search_keeps_only_chunks_with_every_word(
+async def test_keyword_search_ranks_chunks_with_more_of_the_words_first(
     engine: AsyncEngine, loaded: HashingEmbedder
 ) -> None:
-    # "weight" appears in four endpoint sections, "/api/v3/trades" in one.
-    hits = await DocSearch(engine, loaded).search("weight /api/v3/trades", mode="keyword")
-    assert [h.url.split("#")[1] for h in hits] == ["recent-trades-list"]
+    # "weight" appears in four endpoint sections, "/api/v3/trades" in one, "zebras" in none.
+    hits = await DocSearch(engine, loaded).search("weight of zebras /api/v3/trades", mode="keyword")
+    assert hits[0].url.endswith("#recent-trades-list")
 
 
-async def test_keyword_search_falls_back_to_any_word(
+async def test_keyword_search_returns_chunks_with_any_of_the_words(
     engine: AsyncEngine, loaded: HashingEmbedder
 ) -> None:
     hits = await DocSearch(engine, loaded).search("weight of zebras", mode="keyword")

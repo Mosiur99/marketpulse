@@ -21,6 +21,7 @@ dependencies = [
 [project.scripts]
 marketpulse = "marketpulse.main:main"
 marketpulse-docs = "marketpulse.docs.cli:main"
+marketpulse-eval = "marketpulse.evals.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.13.9,<0.14.0"]

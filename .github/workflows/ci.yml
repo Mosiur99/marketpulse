@@ -45,3 +45,48 @@ jobs:
         run: uv run pytest -q
         env:
           MARKETPULSE_EMBEDDING_CACHE_DIR: ~/.cache/fastembed
+
+  retrieval-eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: marketpulse
+          POSTGRES_PASSWORD: marketpulse
+          POSTGRES_DB: marketpulse
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U marketpulse -d marketpulse"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      MARKETPULSE_DATABASE_URL: postgresql+asyncpg://marketpulse:marketpulse@localhost:5432/marketpulse
+      MARKETPULSE_EMBEDDING_CACHE_DIR: ~/.cache/fastembed
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --locked
+
+      - name: Cache the embedding model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/fastembed
+          key: fastembed-bge-small-en-v1.5
+
+      - name: Pin the docs to the commit the baseline was measured on
+        run: echo "MARKETPULSE_DOCS_BRANCH=$(jq -r .docs_commit evals/retrieval-baseline.json)" >> "$GITHUB_ENV"
+
+      - name: Migrate and ingest the docs
+        run: |
+          uv run alembic upgrade head
+          uv run marketpulse-docs
+
+      - name: Retrieval eval (fails when a score falls below the baseline)
+        run: uv run marketpulse-eval retrieval --check >> "$GITHUB_STEP_SUMMARY"

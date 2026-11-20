@@ -1,0 +1,203 @@
+# Retrieval golden set: each question lists the doc sections (file#anchor) that count as a correct find.
+# "natural" questions are worded the way a person asks; "exact" ones name an endpoint, error code, filter or
+# field, the way the agent often searches.
+
+[[question]]
+kind = "natural"
+q = "How do I get candlestick bars for a symbol?"
+expect = ["rest-api.md#klinecandlestick-data", "rest-api.md#uiklines"]
+
+[[question]]
+kind = "natural"
+q = "What is the request weight of the klines endpoint?"
+expect = ["rest-api.md#klinecandlestick-data"]
+
+[[question]]
+kind = "natural"
+q = "What happens when I send too many requests?"
+expect = ["rest-api.md#general-info-on-limits", "rest-api.md#ip-limits", "errors.md#-1003-too_many_requests"]
+
+[[question]]
+kind = "natural"
+q = "Which HTTP status code means my IP has been banned?"
+expect = ["rest-api.md#http-return-codes", "rest-api.md#ip-limits"]
+
+[[question]]
+kind = "natural"
+q = "How do I sign a request with an HMAC key?"
+expect = ["rest-api.md#hmac-keys", "rest-api.md#signed-endpoint-security"]
+
+[[question]]
+kind = "natural"
+q = "What does recvWindow do?"
+expect = ["rest-api.md#timing-security"]
+
+[[question]]
+kind = "natural"
+q = "How can I check the exchange server time?"
+expect = ["rest-api.md#check-server-time"]
+
+[[question]]
+kind = "natural"
+q = "Get the best bid and ask price for a symbol"
+expect = ["rest-api.md#symbol-order-book-ticker"]
+
+[[question]]
+kind = "natural"
+q = "How deep an order book can I request for a trading pair?"
+expect = ["rest-api.md#order-book"]
+
+[[question]]
+kind = "natural"
+q = "price change statistics over the last 24 hours"
+expect = ["rest-api.md#24hr-ticker-price-change-statistics"]
+
+[[question]]
+kind = "natural"
+q = "current average price of a symbol"
+expect = ["rest-api.md#current-average-price"]
+
+[[question]]
+kind = "natural"
+q = "How do I place a new limit order?"
+expect = ["rest-api.md#new-order-trade"]
+
+[[question]]
+kind = "natural"
+q = "Cancel every open order on one symbol"
+expect = ["rest-api.md#cancel-all-open-orders-on-a-symbol-trade"]
+
+[[question]]
+kind = "natural"
+q = "What does error -1021 mean?"
+expect = ["errors.md#-1021-invalid_timestamp"]
+
+[[question]]
+kind = "natural"
+q = "My request fails with an invalid signature error"
+expect = ["errors.md#-1022-invalid_signature"]
+
+[[question]]
+kind = "natural"
+q = "What are the possible order status values?"
+expect = ["enums.md#order-status-status"]
+
+[[question]]
+kind = "natural"
+q = "Which time in force options can an order use?"
+expect = ["enums.md#time-in-force-timeinforce"]
+
+[[question]]
+kind = "natural"
+q = "minimum order quantity and step size rule"
+expect = ["filters.md#lot_size", "filters.md#market_lot_size"]
+
+[[question]]
+kind = "natural"
+q = "minimum notional value of an order"
+expect = ["filters.md#notional", "filters.md#min_notional"]
+
+[[question]]
+kind = "natural"
+q = "rule for the price tick size"
+expect = ["filters.md#price_filter"]
+
+[[question]]
+kind = "natural"
+q = "How many streams can a single websocket connection listen to?"
+expect = ["web-socket-streams.md#websocket-limits", "web-socket-streams.md#general-wss-information"]
+
+[[question]]
+kind = "natural"
+q = "How do I subscribe to a stream on an open websocket connection?"
+expect = ["web-socket-streams.md#subscribe-to-a-stream"]
+
+[[question]]
+kind = "natural"
+q = "payload of the real-time trade stream"
+expect = ["web-socket-streams.md#trade-streams"]
+
+[[question]]
+kind = "natural"
+q = "How do I keep a local order book in sync with the depth stream?"
+expect = ["web-socket-streams.md#how-to-manage-a-local-order-book-correctly", "web-socket-streams.md#diff-depth-stream"]
+
+[[question]]
+kind = "natural"
+q = "websocket stream of one minute candles"
+expect = ["web-socket-streams.md#klinecandlestick-streams-for-utc", "web-socket-streams.md#klinecandlestick-streams-with-timezone-offset"]
+
+[[question]]
+kind = "natural"
+q = "How long does a websocket connection stay open before the server closes it?"
+expect = ["web-socket-streams.md#general-wss-information", "web-socket-streams.md#server-shutdown"]
+
+[[question]]
+kind = "natural"
+q = "Which fields does the execution report contain when my order changes?"
+expect = ["user-data-stream.md#order-update", "user-data-stream.md#conditional-fields-in-execution-report"]
+
+[[question]]
+kind = "natural"
+q = "event sent when my account balance changes"
+expect = ["user-data-stream.md#balance-update", "user-data-stream.md#account-update"]
+
+[[question]]
+kind = "natural"
+q = "self-trade prevention modes"
+expect = ["enums.md#stp-modes", "rest-api.md#query-prevented-matches-user_data"]
+
+[[question]]
+kind = "natural"
+q = "list my past trades for a symbol"
+expect = ["rest-api.md#account-trade-list-user_data"]
+
+[[question]]
+kind = "exact"
+q = "What does error -1013 mean?"
+expect = ["errors.md#-1013-invalid_message"]
+
+[[question]]
+kind = "exact"
+q = "GET /api/v3/depth"
+expect = ["rest-api.md#order-book"]
+
+[[question]]
+kind = "exact"
+q = "GET /api/v3/ticker/bookTicker"
+expect = ["rest-api.md#symbol-order-book-ticker"]
+
+[[question]]
+kind = "exact"
+q = "POST /api/v3/order/test"
+expect = ["rest-api.md#test-new-order-trade"]
+
+[[question]]
+kind = "exact"
+q = "PERCENT_PRICE_BY_SIDE filter"
+expect = ["filters.md#percent_price_by_side"]
+
+[[question]]
+kind = "exact"
+q = "-2010 NEW_ORDER_REJECTED"
+expect = ["errors.md#-2010-new_order_rejected"]
+
+[[question]]
+kind = "exact"
+q = "newOrderRespType values"
+expect = ["enums.md#order-response-type-neworderresptype"]
+
+[[question]]
+kind = "exact"
+q = "<symbol>@aggTrade stream"
+expect = ["web-socket-streams.md#aggregate-trade-streams"]
+
+[[question]]
+kind = "exact"
+q = "executionReport event fields"
+expect = ["user-data-stream.md#order-update", "user-data-stream.md#conditional-fields-in-execution-report"]
+
+[[question]]
+kind = "exact"
+q = "EXCHANGE_MAX_NUM_ORDERS"
+expect = ["filters.md#exchange_max_num_orders"]

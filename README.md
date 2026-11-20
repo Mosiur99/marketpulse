@@ -61,14 +61,45 @@ sections that changed are embedded again. `--force` downloads everything regardl
 - **Embeddings.** `BAAI/bge-small-en-v1.5` (384 dimensions) runs locally through fastembed: no API key, about
   580 MB of memory while ingesting. Chunks are stored by content hash, so re-ingesting adds nothing new.
 - **Search.** Two rankings are merged with reciprocal rank fusion (k = 60):
-  - vector: cosine distance on an HNSW index;
-  - keyword: PostgreSQL full-text search where headings weigh more than body text, paths such as
-    `/api/v3/klines` are split into words, and only chunks with every word of the question are kept (any word,
-    when no chunk has them all).
+  - vector: cosine distance on an HNSW index (top 20);
+  - keyword: PostgreSQL full-text search (top 10), ranked first by how many of the question's words a chunk
+    contains, then by `ts_rank_cd` with headings weighing more than body text. Paths such as `/api/v3/klines`
+    are split into words.
 
-  Each catches what the other misses: for "what does error -1021 mean", vector search alone ranks other error
-  codes first and keyword search alone finds only pages that mention errors in general, while the fused list
-  puts `-1021 INVALID_TIMESTAMP` first. A5 measures this on a fixed question set.
+  An exact tie in the fused score goes to the chunk keyword search ranked higher.
+
+## Evaluation
+
+`evals/retrieval.toml` holds 40 questions with the doc sections that count as a correct answer: 30 asked the way a
+person would ("how do I get candlestick bars"), 10 naming an exact endpoint, error code, filter or field
+(`GET /api/v3/depth`, `-2010 NEW_ORDER_REJECTED`), the way the agent often searches. The docs are pinned to the
+commit in `evals/retrieval-baseline.json`, so scores are reproducible.
+
+```bash
+MARKETPULSE_DOCS_BRANCH=<docs_commit from the baseline> uv run marketpulse-docs
+MARKETPULSE_DOCS_BRANCH=<same commit> uv run marketpulse-eval retrieval --check
+```
+
+| Search | Hit rate @5 (all / natural / exact) | MRR @5 (all / natural / exact) |
+|---|---|---|
+| vector | 0.93 / 0.93 / 0.90 | 0.78 / 0.79 / 0.72 |
+| keyword | 0.78 / 0.80 / 0.70 | 0.59 / 0.60 / 0.58 |
+| hybrid (default) | 0.90 / 0.90 / 0.90 | 0.77 / 0.76 / 0.78 |
+
+CI ingests the pinned docs into a fresh database and fails when any score falls below the baseline.
+
+What the first run found and what changed:
+
+- The first keyword search kept only chunks containing every word of the question. Questions carry words
+  the docs never use ("what does error -1021 **mean**"), so it fell back to chunks with any one word and
+  ranked generic ones first. Keyword hit rate was 0.57 and it pulled hybrid down to 0.80, below vector alone.
+- Ranking by the number of question words matched raised keyword to 0.78. Cutting the keyword list to 10
+  before fusion stopped chunks that share one common word ("order") from pushing out good vector results:
+  hybrid went to 0.90 / 0.77.
+- Vector alone still finds one more question in forty. Hybrid stays the default because it ranks exact
+  identifiers better (MRR 0.78 against 0.72), which is how the agent searches, and it finds what vector misses
+  for "what does error -1021 mean" and `GET /api/v3/depth`. The eval prints every miss; hybrid's four
+  include "What are the possible order status values?" and "How do I place a new limit order?".
 
 ## How the agent works
 
@@ -109,6 +140,7 @@ fill gaps. Interactive docs are at `/docs`.
 uv run pytest                 # unit tests plus integration tests in a pgvector container
 uv run pytest -m "not model"  # skip the tests that load the embedding model (about 70 MB download)
 uv run pytest -m live         # one real call to the AI provider (needs MARKETPULSE_LLM_API_KEY)
+uv run marketpulse-eval retrieval  # retrieval scores on the golden set (see Evaluation)
 uv run ruff check . && uv run mypy src tests
 ```
 
@@ -121,6 +153,6 @@ uv run ruff check . && uv run mypy src tests
 | A2 | Market data API with keyset pagination | done |
 | A3 | Docs ingestion and hybrid search | done |
 | A4 | AI agent with tool calling and guardrails | built; live check with a key pending |
-| A5 | Retrieval and answer evaluation | |
+| A5 | Retrieval and answer evaluation | retrieval eval in CI; answer eval next |
 | A6 | Scheduled summary and alerts | |
 | A7 | Docker image, metrics, demo | |

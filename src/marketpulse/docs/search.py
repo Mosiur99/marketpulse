@@ -16,25 +16,27 @@ RRF_K = 60
 VECTOR_SQL = text(
     "SELECT id FROM doc_chunks ORDER BY embedding <=> CAST(:query AS vector) LIMIT :limit"
 )
-# Keyword search returns the chunks that contain every word of the question. Only when no chunk
-# does, it falls back to chunks with any of the words, so a question with one unknown word still
-# finds something. Slashes split paths into words, the same way the tsv column is built.
+# Keyword search ranks chunks by how many of the question's words they contain, then by ts_rank_cd
+# (headings weigh more than body text). Requiring every word lost too much: "what does error -1021
+# mean" has no chunk with "mean". Slashes split paths into words, as in the tsv column.
 KEYWORD_SQL = text(
     """
-    WITH words AS (
-        SELECT plainto_tsquery('english', translate(:query, '/', ' ')) AS every_word
+    WITH question AS (
+        SELECT translate(:query, '/', ' ') AS words
     ),
-    matches AS (
-        SELECT c.id, c.tsv @@ w.every_word AS has_every_word, ts_rank_cd(c.tsv, w.any_word) AS rank
-        FROM doc_chunks c,
-             (SELECT every_word,
-                     CAST(replace(CAST(every_word AS text), '&', '|') AS tsquery) AS any_word
-              FROM words) w
-        WHERE c.tsv @@ w.any_word
+    terms AS (
+        SELECT array_agg(CAST(quote_literal(lexeme) AS tsquery)) AS each_word,
+               CAST(replace(CAST(plainto_tsquery('english', q.words) AS text), '&', '|')
+                    AS tsquery) AS any_word
+        FROM question q, unnest(tsvector_to_array(to_tsvector('english', q.words))) AS lexeme
+        GROUP BY q.words
     )
-    SELECT id FROM matches
-    WHERE has_every_word OR NOT EXISTS (SELECT 1 FROM matches WHERE has_every_word)
-    ORDER BY rank DESC, id
+    SELECT c.id
+    FROM doc_chunks c, terms t
+    WHERE c.tsv @@ t.any_word
+    ORDER BY (SELECT count(*) FROM unnest(t.each_word) AS word WHERE c.tsv @@ word) DESC,
+             ts_rank_cd(c.tsv, t.any_word) DESC,
+             c.id
     LIMIT :limit
     """
 )
@@ -70,26 +72,40 @@ def reciprocal_rank_fusion(rankings: Sequence[Sequence[int]], k: int = RRF_K) ->
     return scores
 
 
+def fused_order(scores: dict[int, float], tie_breaker: Sequence[int]) -> list[int]:
+    """Best score first. An exact tie means the lists disagree by the same amount; the last list
+    (keyword search in hybrid mode, which matched the literal words) decides it."""
+    position = {chunk_id: rank for rank, chunk_id in enumerate(tie_breaker)}
+    return sorted(
+        scores,
+        key=lambda chunk_id: (-scores[chunk_id], position.get(chunk_id, len(position)), chunk_id),
+    )
+
+
 class DocSearch:
     def __init__(self, engine: AsyncEngine, embedder: Embedder) -> None:
         self._engine = engine
         self._embedder = embedder
 
     async def search(self, query: str, limit: int = 5, mode: Mode = "hybrid") -> list[DocHit]:
-        candidates = max(limit * 4, 20)
+        # The keyword list is kept shorter: its lower ranks are mostly chunks that share one common
+        # word such as "order", and in the fusion they pushed out good vector-only results.
+        vector_candidates, keyword_candidates = max(limit * 4, 20), max(limit * 2, 10)
         rankings: list[list[int]] = []
         async with self._engine.connect() as connection:
             if mode in ("hybrid", "vector"):
                 vector = await asyncio.to_thread(self._embedder.embed_query, query)
                 rows = await connection.execute(
-                    VECTOR_SQL, {"query": str(vector), "limit": candidates}
+                    VECTOR_SQL, {"query": str(vector), "limit": vector_candidates}
                 )
                 rankings.append([row.id for row in rows])
             if mode in ("hybrid", "keyword"):
-                rows = await connection.execute(KEYWORD_SQL, {"query": query, "limit": candidates})
+                rows = await connection.execute(
+                    KEYWORD_SQL, {"query": query, "limit": keyword_candidates}
+                )
                 rankings.append([row.id for row in rows])
             scores = reciprocal_rank_fusion(rankings)
-            top = sorted(scores, key=lambda chunk_id: (-scores[chunk_id], chunk_id))[:limit]
+            top = fused_order(scores, rankings[-1])[:limit]
             if not top:
                 return []
             details = {row.id: row for row in await connection.execute(DETAILS_SQL, {"ids": top})}
