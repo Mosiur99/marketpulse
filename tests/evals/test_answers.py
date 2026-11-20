@@ -44,6 +44,13 @@ def test_figures_read_prices_percentages_and_thousands() -> None:
     assert figures("about 63.1k") == [Figure(Decimal("63100.0"), -2)]
 
 
+def test_figures_read_unicode_minus_signs_and_narrow_space_groups() -> None:
+    assert values("down \u22120.93%, at 63\u202f103.30 on 2026\u201111\u201119") == [
+        Decimal("-0.93"),
+        Decimal("63103.30"),
+    ]
+
+
 def test_figures_skip_dates_times_links_and_paths() -> None:
     text = f"On 2026-11-19 at 15:59 UTC, GET /api/v3/klines, see {DOC_URL}. Version v3."
     assert values(text) == []

@@ -59,8 +59,14 @@ class Figure:
     decimals: int
 
 
+# Models write dashes and minus signs as Unicode, and may group thousands with narrow spaces.
+DASHES = str.maketrans({"\u2010": "-", "\u2011": "-", "\u2012": "-", "\u2013": "-", "\u2212": "-"})
+DIGIT_GROUP_SPACE = re.compile(r"(?<=\d)[\u00a0\u202f\u2009](?=\d{3}\b)")
+
+
 def figures(text: str, skip_dates_and_links: bool = True) -> list[Figure]:
     found = []
+    text = DIGIT_GROUP_SPACE.sub("", text.translate(DASHES))
     if skip_dates_and_links:
         text = NOT_FIGURES.sub(" ", text)
     for match in FIGURE.finditer(text):

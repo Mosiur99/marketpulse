@@ -82,3 +82,15 @@ async def test_a_second_garbled_tool_call_is_raised() -> None:
     llm = ScriptedLLM([failure, ToolUseFailedError(400, "bad again", "tool_use_failed")])
     with pytest.raises(ToolUseFailedError):
         await agent(llm).ask("question")
+
+
+async def test_an_empty_final_message_is_asked_again() -> None:
+    llm = ScriptedLLM([answers("  "), answers("BTC is at 63,103.30.")])
+    result = await agent(llm).ask("BTC?")
+    assert (result.status, result.answer, result.steps) == ("answered", "BTC is at 63,103.30.", 2)
+
+
+async def test_only_empty_messages_end_at_the_step_limit() -> None:
+    llm = ScriptedLLM([answers("") for _ in range(3)])
+    result = await agent(llm, max_steps=3).ask("BTC?")
+    assert (result.status, result.answer, result.steps) == ("step_limit", None, 3)

@@ -100,8 +100,12 @@ class Agent:
                 result.status = "refused"
                 return
             if not completion.tool_calls:
+                answer = (completion.content or "").strip()
+                if not answer:
+                    # gpt-oss sometimes ends with only reasoning and no text; ask again.
+                    continue
                 result.status = "answered"
-                result.answer = (completion.content or "").strip()
+                result.answer = answer
                 return
             messages.append(completion.as_message())
             for call in completion.tool_calls:
