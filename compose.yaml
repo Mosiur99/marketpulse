@@ -16,5 +16,36 @@ services:
       timeout: 3s
       retries: 10
 
+  # docker compose --profile app up -d   (the service, with keys from .env)
+  app:
+    profiles: ["app"]
+    build: .
+    image: marketpulse:local
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      MARKETPULSE_DATABASE_URL: postgresql+asyncpg://marketpulse:marketpulse@postgres:5432/marketpulse
+    ports:
+      - "8000:8000"
+    volumes:
+      - models:/home/app/.cache/fastembed
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # docker compose --profile app --profile monitoring up -d   (Prometheus on :9090)
+  prometheus:
+    profiles: ["monitoring"]
+    image: prom/prometheus:v3.16.0
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - app
+
 volumes:
   pgdata:
+  models:

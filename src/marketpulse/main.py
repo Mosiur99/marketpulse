@@ -7,7 +7,8 @@ from datetime import UTC, datetime
 
 import httpx
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from marketpulse.agent.llm import LLMClient, OpenAICompatibleClient
@@ -26,6 +27,7 @@ from marketpulse.docs.search import DocSearch
 from marketpulse.market.ingestor import Ingestor
 from marketpulse.market.queries import MarketQueries
 from marketpulse.market.store import TradeStore
+from marketpulse.metrics import Metrics
 
 
 def create_app(
@@ -75,6 +77,7 @@ def create_app(
                 settings.summary_time_utc,
                 clock,
                 summary_agent(app) if app.state.llm is not None else None,
+                app.state.metrics,
             )
             automation_task = asyncio.create_task(
                 automation.run(settings.alert_check_seconds), name="automation"
@@ -114,6 +117,8 @@ def create_app(
     )
     app.state.settings = settings
     app.state.clock = clock
+    app.state.ingestor = None
+    app.state.metrics = Metrics(lambda: app.state.ingestor)
     app.state.embedder = embedder
     problems.install(app)
     app.include_router(health.router)
@@ -121,6 +126,11 @@ def create_app(
     app.include_router(docs.router)
     app.include_router(ask.router)
     app.include_router(alerts.router)
+
+    @app.get("/metrics", include_in_schema=False)
+    async def metrics() -> Response:
+        return Response(generate_latest(app.state.metrics.registry), media_type=CONTENT_TYPE_LATEST)
+
     return app
 
 
@@ -143,6 +153,8 @@ def summary_agent(app: FastAPI) -> AskAgent:
             max_steps=max(state.settings.agent_max_steps, len(state.settings.symbols) + 2),
             timeout_seconds=state.settings.agent_timeout_seconds,
         ).ask(question)
+        state.metrics.llm_tokens.labels("prompt").inc(result.prompt_tokens)
+        state.metrics.llm_tokens.labels("completion").inc(result.completion_tokens)
         return result.answer if result.status == "answered" else None
 
     return ask_agent

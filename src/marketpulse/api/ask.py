@@ -1,3 +1,4 @@
+import time
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Request
@@ -72,16 +73,22 @@ async def ask(request: Request, body: Question) -> Answer:
         timeout_seconds=state.settings.agent_timeout_seconds,
     )
     log = AskLog(state.engine)
+    started = time.monotonic()
     try:
         result = await agent.ask(body.question)
     except RateLimitedError as error:
+        state.metrics.record_ask("rate_limited", time.monotonic() - started, 0, 0)
         await log.record(body.question, llm.model, None, str(error))
         raise ProblemError(
             503, "The AI provider's free-tier limit was reached. Try again in a minute."
         ) from error
     except LLMError as error:
+        state.metrics.record_ask("provider_error", time.monotonic() - started, 0, 0)
         await log.record(body.question, llm.model, None, str(error))
         raise ProblemError(502, f"The AI provider returned an error ({error.status}).") from error
+    state.metrics.record_ask(
+        result.status, result.latency_ms / 1000, result.prompt_tokens, result.completion_tokens
+    )
     answer_id = await log.record(body.question, llm.model, result)
     return Answer(
         id=answer_id,

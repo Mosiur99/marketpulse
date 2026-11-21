@@ -171,3 +171,25 @@ async def test_a_step_limit_still_returns_an_explanation(
     assert status == 200
     assert body["status"] == "step_limit"
     assert "allowed number of steps" in str(body["answer"])
+
+
+async def test_metrics_count_answers_and_tokens(
+    engine: AsyncEngine, seeded: HashingEmbedder
+) -> None:
+    app = create_app(
+        Settings(ingest_enabled=False, symbols=["BTCUSDT"]),
+        engine=engine,
+        clock=lambda: NOW,
+        embedder=seeded,
+        llm=ScriptedLLM([answers("Hello.", tokens=300)]),
+    )
+    async with (
+        app.router.lifespan_context(app),
+        AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client,
+    ):
+        assert (await client.post("/ask", json={"question": "hi there"})).status_code == 200
+        response = await client.get("/metrics")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/plain")
+    assert 'marketpulse_ask_duration_seconds_count{status="answered"} 1.0' in response.text
+    assert 'marketpulse_llm_tokens_total{kind="prompt"} 300.0' in response.text

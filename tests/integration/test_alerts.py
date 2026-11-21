@@ -17,6 +17,7 @@ from marketpulse.alerts.summary import AskAgent
 from marketpulse.config import Settings
 from marketpulse.evals.snapshot import SnapshotMarket, load_snapshot
 from marketpulse.main import create_app
+from marketpulse.metrics import Metrics
 
 pytestmark = pytest.mark.integration
 
@@ -118,7 +119,19 @@ async def test_the_summary_waits_for_fresh_trades(store: AlertStore) -> None:
 
 async def test_a_failed_alert_is_recorded_and_tried_again(store: AlertStore) -> None:
     await store.add_rule("ETHUSDT", "1h", Decimal("0.5"), 60)
-    await automation(store, FakeNotifier(fail=True)).tick()
+    metrics = Metrics()
+    failing = Automation(
+        store,
+        SnapshotMarket(SNAPSHOT),
+        FakeNotifier(fail=True),
+        [],
+        time(23),
+        lambda: NOW,
+        metrics=metrics,
+    )
+    await failing.tick()
+    sample = metrics.registry.get_sample_value
+    assert sample("marketpulse_notifications_total", {"kind": "alert", "status": "failed"}) == 1
     assert await statuses(store) == [("alert", "failed", 3)]
     assert (await store.recent(1))[0].error == "Telegram 500: down"
     retry = NOW + timedelta(minutes=1)

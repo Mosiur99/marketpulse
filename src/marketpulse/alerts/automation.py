@@ -19,6 +19,7 @@ from marketpulse.alerts.store import AlertStore, Kind
 from marketpulse.alerts.summary import AskAgent, write_summary
 from marketpulse.market.candles import minute_of
 from marketpulse.market.windows import WINDOWS
+from marketpulse.metrics import Metrics
 
 log = logging.getLogger(__name__)
 
@@ -39,6 +40,7 @@ class Automation:
         summary_at: time,
         clock: Callable[[], datetime],
         ask_agent: AskAgent | None = None,
+        metrics: Metrics | None = None,
     ) -> None:
         self._store = store
         self._market = market
@@ -47,6 +49,7 @@ class Automation:
         self._summary_at = summary_at
         self._clock = clock
         self._ask_agent = ask_agent
+        self._metrics = metrics
 
     async def run(
         self, interval: float, sleep: Callable[[float], Awaitable[None]] = asyncio.sleep
@@ -109,5 +112,11 @@ class Automation:
         except DeliveryError as error:
             log.warning("%s %s not delivered: %s", kind, key, error)
             await self._store.mark_failed(notification_id, error.attempts, str(error))
+            self._count(kind, "failed")
             return
         await self._store.mark_sent(notification_id, attempts, self._clock())
+        self._count(kind, "sent")
+
+    def _count(self, kind: Kind, status: str) -> None:
+        if self._metrics is not None:
+            self._metrics.notifications.labels(kind, status).inc()

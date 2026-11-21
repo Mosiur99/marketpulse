@@ -90,3 +90,40 @@ jobs:
 
       - name: Retrieval eval (fails when a score falls below the baseline)
         run: uv run marketpulse-eval retrieval --check >> "$GITHUB_STEP_SUMMARY"
+
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: marketpulse
+          POSTGRES_PASSWORD: marketpulse
+          POSTGRES_DB: marketpulse
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U marketpulse -d marketpulse"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build the image
+        run: docker build -t marketpulse:ci .
+
+      - name: Smoke test (migrates, starts, serves /health and /metrics as a non-root user)
+        run: |
+          docker run -d --name app --network host \
+            -e MARKETPULSE_DATABASE_URL=postgresql+asyncpg://marketpulse:marketpulse@localhost:5432/marketpulse \
+            -e MARKETPULSE_AUTOMATION_ENABLED=false \
+            marketpulse:ci
+          for i in $(seq 1 30); do
+            curl -fsS localhost:8000/health && break
+            sleep 2
+          done
+          curl -fsS localhost:8000/health | grep '"database":"up"'
+          curl -fsS localhost:8000/metrics | grep marketpulse_ask_duration_seconds
+          test "$(docker exec app id -un)" = app
+          docker logs app | tail -20
+          docker rm -f app

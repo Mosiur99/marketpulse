@@ -2,23 +2,68 @@
 
 Live crypto market data, a tool-calling AI agent and search over exchange API docs, in Python.
 
-> Work in progress. Built in small tested parts; see the plan below.
-
-## What it will do
+## What it does
 
 - Record every BTC, ETH and SOL trade from Binance's public WebSocket feed and build one-minute candles.
 - Serve prices, candles and stats over a REST API.
 - Answer plain-English questions with an AI agent (free tier of Groq, or any OpenAI-compatible API) that calls the service's own tools and cites the docs it used.
 - Search Binance's public Spot API docs with hybrid (vector + keyword) retrieval on PostgreSQL and pgvector.
-- Send a daily market summary and price-move alerts.
+- Send a daily market summary and price-move alerts to Telegram.
 
 It reads public market data only: no trading and no exchange account.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    feed["Binance public<br/>trade stream"] -->|WebSocket| ingestor
+    docsrc["Binance Spot API docs<br/>(GitHub Markdown)"] -->|ETag fetch| docsjob["marketpulse-docs<br/>chunk + embed"]
+
+    subgraph service["MarketPulse service (one process)"]
+        ingestor["Ingestor<br/>batches + 1m candles"]
+        api["REST API<br/>/prices /candles /stats /docs/search"]
+        agent["Agent loop<br/>/ask"]
+        tools["Tools<br/>get_price get_stats<br/>get_candles search_docs"]
+        alerts["Alert loop<br/>rules + daily summary"]
+        metrics["/metrics"]
+    end
+
+    ingestor --> pg
+    docsjob --> pg
+    pg[("PostgreSQL 17<br/>+ pgvector")]
+    api --> pg
+    agent <-->|tool calls| llm["Groq free tier<br/>gpt-oss-120b"]
+    agent --> tools --> pg
+    alerts --> tools
+    alerts -->|outbox| pg
+    alerts --> tg["Telegram bot"]
+    prom["Prometheus"] -->|scrape| metrics
+```
+
+How a question is answered:
+
+```mermaid
+sequenceDiagram
+    participant U as Client
+    participant A as Agent loop
+    participant M as Model (Groq)
+    participant T as Tools
+    U->>A: POST /ask "How much did ETH move in the last hour?"
+    loop at most 6 steps, 60 s
+        A->>M: messages + tool schemas
+        M-->>A: tool call get_stats(ETHUSDT, 1h)
+        A->>T: validate arguments, run
+        T-->>A: JSON result (or an error the model can correct)
+    end
+    M-->>A: answer text
+    A-->>U: answer, sources, tool calls, tokens, latency (logged in ask_log)
+```
 
 ## Stack
 
 Python 3.12 (uv), FastAPI, Pydantic, SQLAlchemy 2 (async) with asyncpg, Alembic, PostgreSQL 17 with pgvector,
 fastembed, an OpenAI-compatible chat API (Groq free tier by default), pytest with Testcontainers, ruff, mypy
-(strict), GitHub Actions.
+(strict), Docker, Prometheus, Telegram Bot API, GitHub Actions.
 
 ## Run it locally
 
@@ -30,6 +75,14 @@ docker compose up -d --wait
 uv run alembic upgrade head
 uv run marketpulse-docs       # download, chunk and embed the Binance Spot API docs (about 2 minutes)
 uv run marketpulse            # http://localhost:8000/health and /docs
+```
+
+Or run everything in Docker (the image runs as a non-root user and applies migrations on start):
+
+```bash
+docker compose --profile app up -d --build                        # API on :8000, keys read from .env
+docker compose --profile app --profile monitoring up -d           # plus Prometheus on :9090
+docker compose exec app marketpulse-docs                           # load the docs into the database
 ```
 
 Run `marketpulse-docs` again at any time: documents whose ETag has not changed are skipped, and only
@@ -192,6 +245,22 @@ A background loop in the service runs every minute (`MARKETPULSE_ALERT_CHECK_SEC
 Set up: create a bot with @BotFather, send it any message, put the token in `.env`, read your chat id from
 `https://api.telegram.org/bot<token>/getUpdates`, then `POST /alerts/test`.
 
+## Metrics
+
+`GET /metrics` in Prometheus format:
+
+| Metric | What it shows |
+|---|---|
+| `marketpulse_ingest_connected` | 1 while the trade feed is connected |
+| `marketpulse_ingest_lag_seconds` | Age of the newest trade received |
+| `marketpulse_trades_saved_total` | Trades written to the database |
+| `marketpulse_feed_malformed_messages_total` | Feed messages that could not be parsed |
+| `marketpulse_ask_duration_seconds{status}` | Time to answer `/ask`, by result (`answered`, `step_limit`, `rate_limited`, ...) |
+| `marketpulse_llm_tokens_total{kind}` | Prompt and completion tokens, including the daily summary |
+| `marketpulse_notifications_total{kind,status}` | Alerts and summaries sent or failed |
+
+Ingest values are read when Prometheus scrapes, not updated on every trade.
+
 ## API
 
 | Endpoint | Returns |
@@ -205,6 +274,7 @@ Set up: create a bot with @BotFather, send it any message, put the token in `.en
 | `GET /alerts/notifications?limit=20` | Alerts and summaries sent, newest first, with status, attempts and error |
 | `POST /alerts/test` | Sends a test message through the configured channel |
 | `GET /health` | Database state, feed connection, lag and trades saved |
+| `GET /metrics` | Prometheus metrics (see Metrics) |
 
 Prices and volumes are exact decimals, sent as strings. Errors use RFC 9457 problem details
 (`application/problem+json`). Candles exist only for minutes when the ingestor was running; the API does not
@@ -232,4 +302,4 @@ uv run ruff check . && uv run mypy src tests
 | A4 | AI agent with tool calling and guardrails | done |
 | A5 | Retrieval and answer evaluation | done |
 | A6 | Scheduled summary and alerts | done |
-| A7 | Docker image, metrics, demo | |
+| A7 | Docker image, metrics, demo | image, Compose, metrics done; demo next |
