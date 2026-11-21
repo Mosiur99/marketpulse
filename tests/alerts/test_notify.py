@@ -92,3 +92,12 @@ async def test_the_log_notifier_always_delivers(caplog: pytest.LogCaptureFixture
     caplog.set_level("INFO")
     assert await LogNotifier().send("hello") == 1
     assert "hello" in caplog.text
+
+
+def test_request_urls_with_the_bot_token_are_not_logged() -> None:
+    import logging
+
+    from marketpulse.main import configure_logging
+
+    configure_logging("INFO")
+    assert not logging.getLogger("httpx").isEnabledFor(logging.INFO)

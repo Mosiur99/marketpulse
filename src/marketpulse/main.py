@@ -148,11 +148,15 @@ def summary_agent(app: FastAPI) -> AskAgent:
     return ask_agent
 
 
+def configure_logging(level: str) -> None:
+    logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    # httpx logs every request URL at INFO, and Telegram's URL contains the bot token.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+
+
 def main() -> None:
     settings = get_settings()
-    logging.basicConfig(
-        level=settings.log_level, format="%(asctime)s %(levelname)s %(name)s %(message)s"
-    )
+    configure_logging(settings.log_level)
     uvicorn.run(
         create_app(settings), host="0.0.0.0", port=8000, log_level=settings.log_level.lower()
     )

@@ -186,7 +186,11 @@ A background loop in the service runs every minute (`MARKETPULSE_ALERT_CHECK_SEC
 - **Delivery.** Telegram (`MARKETPULSE_TELEGRAM_BOT_TOKEN` and `MARKETPULSE_TELEGRAM_CHAT_ID`), up to 3
   attempts with backoff, waiting as long as Telegram asks after a rate limit; a wrong token or chat is not
   retried. Failures are recorded with the error; a failed alert is tried again on the next check, a failed
-  summary up to 5 attempts in total. Without a bot token, messages go to the log.
+  summary up to 5 attempts in total. Without a bot token, messages go to the log. Request URLs are not
+  logged, because Telegram's URL contains the bot token.
+
+Set up: create a bot with @BotFather, send it any message, put the token in `.env`, read your chat id from
+`https://api.telegram.org/bot<token>/getUpdates`, then `POST /alerts/test`.
 
 ## API
 
@@ -227,5 +231,5 @@ uv run ruff check . && uv run mypy src tests
 | A3 | Docs ingestion and hybrid search | done |
 | A4 | AI agent with tool calling and guardrails | done |
 | A5 | Retrieval and answer evaluation | done |
-| A6 | Scheduled summary and alerts | built; real Telegram delivery pending |
+| A6 | Scheduled summary and alerts | done |
 | A7 | Docker image, metrics, demo | |
