@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, FastAPI, Query, Request
 from pydantic import BaseModel
 
 from marketpulse.docs.embedder import Embedder, FastEmbedEmbedder
@@ -23,7 +23,12 @@ class DocResults(BaseModel):
 
 
 def embedder(request: Request) -> Embedder:
-    state = request.app.state
+    return lazy_embedder(request.app)
+
+
+def lazy_embedder(app: FastAPI) -> Embedder:
+    """The model loads on first use (about 70 MB), not at startup."""
+    state = app.state
     if state.embedder is None:
         settings = state.settings
         state.embedder = FastEmbedEmbedder(settings.embedding_model, settings.embedding_cache_dir)

@@ -102,3 +102,31 @@ ask_log = Table(
     Column("tool_calls", JSONB, nullable=False),
     Column("error", Text),
 )
+
+alert_rules = Table(
+    "alert_rules",
+    metadata,
+    Column("id", BigInteger, Identity(), primary_key=True),
+    Column("symbol", Text, nullable=False),
+    Column("window", Text, nullable=False),
+    Column("threshold_pct", Numeric(8, 4), nullable=False),
+    Column("cooldown_minutes", Integer, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+)
+
+# One row per message, written before it is sent: the unique key stops a second send of the same
+# alert or daily summary, also after a restart.
+notifications = Table(
+    "notifications",
+    metadata,
+    Column("id", BigInteger, Identity(), primary_key=True),
+    Column("kind", Text, nullable=False),
+    Column("dedupe_key", Text, nullable=False, unique=True),
+    Column("rule_id", BigInteger, ForeignKey("alert_rules.id", ondelete="SET NULL")),
+    Column("text", Text, nullable=False),
+    Column("status", Text, nullable=False),
+    Column("attempts", Integer, nullable=False, server_default="0"),
+    Column("error", Text),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("sent_at", DateTime(timezone=True)),
+)

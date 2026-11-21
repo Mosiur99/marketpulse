@@ -169,6 +169,25 @@ console.groq.com) and, to switch provider or model, `MARKETPULSE_LLM_BASE_URL` a
 - **Answer.** Text plus the doc sections retrieved (title and link to the exact heading), every tool call,
   steps, tokens and latency. Each question is stored in `ask_log` for evaluation in A5.
 
+## How alerts work
+
+A background loop in the service runs every minute (`MARKETPULSE_ALERT_CHECK_SECONDS`):
+
+- **Price-move alerts.** Each rule names a symbol, a window (`15m`, `1h`, `4h`, `24h`), a threshold in percent
+  and a cooldown. When the price changed by at least the threshold over the window, up or down, it sends
+  `ETHUSDT fell 0.93% in the last 1h: 1,798.55 to 1,781.89 (15:00-15:59 UTC)`. Nothing is sent from data more
+  than 5 minutes old, so an ingestor outage does not produce alerts about old moves.
+- **Daily summary** at `MARKETPULSE_SUMMARY_TIME_UTC` (08:00 by default), written by the same agent as `/ask`
+  when an AI key is set, or from the 24h stats otherwise (also when the provider fails).
+- **No duplicates.** Every message is written to `notifications` with a unique key *before* it is sent: one key
+  per rule and minute, one per summary day. A restart cannot send the same alert or summary twice; the cooldown
+  is read from the table, not from memory. The trade-off is at most once: if the process dies mid-send, that
+  message is not repeated.
+- **Delivery.** Telegram (`MARKETPULSE_TELEGRAM_BOT_TOKEN` and `MARKETPULSE_TELEGRAM_CHAT_ID`), up to 3
+  attempts with backoff, waiting as long as Telegram asks after a rate limit; a wrong token or chat is not
+  retried. Failures are recorded with the error; a failed alert is tried again on the next check, a failed
+  summary up to 5 attempts in total. Without a bot token, messages go to the log.
+
 ## API
 
 | Endpoint | Returns |
@@ -178,6 +197,9 @@ console.groq.com) and, to switch provider or model, `MARKETPULSE_LLM_BASE_URL` a
 | `GET /stats/{symbol}?window=24h` | Open, last, change, change %, high, low, volume and trade count over `15m`, `1h`, `4h` or `24h` |
 | `GET /docs/search?q=&limit=5&mode=hybrid` | Doc sections for a question, best first, each with its heading path, a link to the exact heading and the text. `mode` is `hybrid`, `vector` or `keyword`. |
 | `POST /ask` | An answer from the agent with its sources, tool calls, steps, tokens and latency. 503 when no API key is set or the free-tier limit is reached. |
+| `GET /alerts/rules`, `POST /alerts/rules`, `DELETE /alerts/rules/{id}` | Price-move alert rules: `{"symbol": "ETHUSDT", "window": "1h", "threshold_pct": 1.5, "cooldown_minutes": 60}` |
+| `GET /alerts/notifications?limit=20` | Alerts and summaries sent, newest first, with status, attempts and error |
+| `POST /alerts/test` | Sends a test message through the configured channel |
 | `GET /health` | Database state, feed connection, lag and trades saved |
 
 Prices and volumes are exact decimals, sent as strings. Errors use RFC 9457 problem details
@@ -205,5 +227,5 @@ uv run ruff check . && uv run mypy src tests
 | A3 | Docs ingestion and hybrid search | done |
 | A4 | AI agent with tool calling and guardrails | done |
 | A5 | Retrieval and answer evaluation | done |
-| A6 | Scheduled summary and alerts | |
+| A6 | Scheduled summary and alerts | built; real Telegram delivery pending |
 | A7 | Docker image, metrics, demo | |

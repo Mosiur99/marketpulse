@@ -11,11 +11,20 @@ from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from marketpulse.agent.llm import LLMClient, OpenAICompatibleClient
-from marketpulse.api import ask, docs, health, market, problems
+from marketpulse.agent.loop import Agent
+from marketpulse.agent.tools import ToolBox
+from marketpulse.alerts.automation import Automation
+from marketpulse.alerts.notify import LogNotifier, Notifier, TelegramNotifier
+from marketpulse.alerts.store import AlertStore
+from marketpulse.alerts.summary import AskAgent
+from marketpulse.api import alerts, ask, docs, health, market, problems
+from marketpulse.api.docs import lazy_embedder
 from marketpulse.config import Settings, get_settings
 from marketpulse.db import create_engine
 from marketpulse.docs.embedder import Embedder
+from marketpulse.docs.search import DocSearch
 from marketpulse.market.ingestor import Ingestor
+from marketpulse.market.queries import MarketQueries
 from marketpulse.market.store import TradeStore
 
 
@@ -25,6 +34,7 @@ def create_app(
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     embedder: Embedder | None = None,
     llm: LLMClient | None = None,
+    notifier: Notifier | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
 
@@ -43,6 +53,32 @@ def create_app(
                 settings.llm_api_key.get_secret_value(),
                 settings.llm_model,
             )
+        telegram_http = None
+        if notifier is not None:
+            app.state.notifier = notifier
+        elif settings.telegram_bot_token is not None and settings.telegram_chat_id:
+            telegram_http = httpx.AsyncClient(timeout=15)
+            app.state.notifier = TelegramNotifier(
+                telegram_http,
+                settings.telegram_bot_token.get_secret_value(),
+                settings.telegram_chat_id,
+            )
+        else:
+            app.state.notifier = LogNotifier()
+        automation_task = None
+        if settings.automation_enabled:
+            automation = Automation(
+                AlertStore(app.state.engine),
+                MarketQueries(app.state.engine),
+                app.state.notifier,
+                settings.symbols,
+                settings.summary_time_utc,
+                clock,
+                summary_agent(app) if app.state.llm is not None else None,
+            )
+            automation_task = asyncio.create_task(
+                automation.run(settings.alert_check_seconds), name="automation"
+            )
         ingest_task = None
         if settings.ingest_enabled:
             app.state.ingestor = Ingestor(
@@ -56,12 +92,14 @@ def create_app(
         try:
             yield
         finally:
-            if ingest_task is not None:
-                ingest_task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await ingest_task
-            if http is not None:
-                await http.aclose()
+            for task in (automation_task, ingest_task):
+                if task is not None:
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task
+            for client in (http, telegram_http):
+                if client is not None:
+                    await client.aclose()
             if owned:
                 await app.state.engine.dispose()
 
@@ -82,7 +120,32 @@ def create_app(
     app.include_router(market.router)
     app.include_router(docs.router)
     app.include_router(ask.router)
+    app.include_router(alerts.router)
     return app
+
+
+def summary_agent(app: FastAPI) -> AskAgent:
+    """The daily summary is written by the same agent and tools as POST /ask."""
+    state = app.state
+
+    async def ask_agent(question: str) -> str | None:
+        tools = ToolBox(
+            market=MarketQueries(state.engine),
+            docs=DocSearch(state.engine, lazy_embedder(app)),
+            symbols=state.settings.symbols,
+            clock=state.clock,
+        )
+        result = await Agent(
+            state.llm,
+            tools,
+            state.clock,
+            # One tool call per symbol and step, plus the answer, with one step to spare.
+            max_steps=max(state.settings.agent_max_steps, len(state.settings.symbols) + 2),
+            timeout_seconds=state.settings.agent_timeout_seconds,
+        ).ask(question)
+        return result.answer if result.status == "answered" else None
+
+    return ask_agent
 
 
 def main() -> None:

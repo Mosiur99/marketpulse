@@ -1,3 +1,4 @@
+from datetime import time
 from functools import lru_cache
 
 from pydantic import Field, PostgresDsn, SecretStr, field_validator
@@ -51,7 +52,13 @@ class Settings(BaseSettings):
     agent_max_steps: int = Field(default=6, ge=1, le=20)
     agent_timeout_seconds: float = Field(default=60.0, gt=0, le=300)
 
-    @field_validator("llm_api_key", mode="before")
+    automation_enabled: bool = True
+    alert_check_seconds: float = Field(default=60.0, ge=5, le=3_600)
+    summary_time_utc: time = time(8, 0)
+    telegram_bot_token: SecretStr | None = None
+    telegram_chat_id: str | None = None
+
+    @field_validator("llm_api_key", "telegram_bot_token", mode="before")
     @classmethod
     def blank_key_means_none(cls, value: object) -> object:
         return None if isinstance(value, str) and not value.strip() else value

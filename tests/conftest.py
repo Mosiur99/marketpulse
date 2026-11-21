@@ -13,3 +13,6 @@ def ignore_the_local_env_file(
         return
     monkeypatch.setitem(Settings.model_config, "env_file", None)
     monkeypatch.delenv("MARKETPULSE_LLM_API_KEY", raising=False)
+    monkeypatch.delenv("MARKETPULSE_TELEGRAM_BOT_TOKEN", raising=False)
+    # The alert loop would run in the background of every app a test starts.
+    monkeypatch.setenv("MARKETPULSE_AUTOMATION_ENABLED", "false")
